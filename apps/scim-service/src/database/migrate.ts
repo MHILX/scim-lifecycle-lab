@@ -5,8 +5,10 @@ import { openDatabase } from "./connection.js";
 import { migrateDatabase } from "./migrations.js";
 
 function main(): void {
-  if (existsSync(".env")) {
-    process.loadEnvFile(".env");
+  const environmentFile = existsSync(".env") ? ".env" : new URL("../../../../.env", import.meta.url);
+
+  if (existsSync(environmentFile)) {
+    process.loadEnvFile(environmentFile);
   }
 
   const config = loadServiceConfig();

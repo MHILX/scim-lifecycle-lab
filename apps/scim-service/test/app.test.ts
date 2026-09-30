@@ -519,6 +519,23 @@ describe("SCIM audit inspection", () => {
     });
     expect(createdResponse.statusCode).toBe(201);
 
+    const userId = createdResponse.json().id as string;
+    const populatedGroupResponse = await app.inject({
+      method: "POST",
+      url: "/Groups",
+      headers,
+      payload: { displayName: "Engineering", members: [{ value: userId }] }
+    });
+    expect(populatedGroupResponse.statusCode).toBe(201);
+
+    const emptyGroupResponse = await app.inject({
+      method: "POST",
+      url: "/Groups",
+      headers,
+      payload: { displayName: "Empty" }
+    });
+    expect(emptyGroupResponse.statusCode).toBe(201);
+
     const inspectionResponse = await app.inject({
       method: "GET",
       url: "/_dev/inspection",
@@ -528,6 +545,7 @@ describe("SCIM audit inspection", () => {
     expect(inspectionResponse.statusCode).toBe(200);
     const inspection = inspectionResponse.json() as {
       users: Array<{ userName: string }>;
+      groups: Array<{ displayName: string; members: Array<{ id: string; userName: string }> }>;
       auditEvents: Array<{
         actor: string;
         path: string;
@@ -540,6 +558,16 @@ describe("SCIM audit inspection", () => {
     };
 
     expect(inspection.users).toEqual([expect.objectContaining({ userName: "audited@example.test" })]);
+    expect(inspection.groups).toHaveLength(2);
+    expect(inspection.groups).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          displayName: "Engineering",
+          members: [{ id: userId, userName: "audited@example.test" }]
+        }),
+        expect.objectContaining({ displayName: "Empty", members: [] })
+      ])
+    );
 
     const rejectedEvent = inspection.auditEvents.find(
       (event) => event.path === "/Users" && event.status === 400

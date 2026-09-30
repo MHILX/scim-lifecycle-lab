@@ -1,5 +1,5 @@
 import type { Request, RequestHandler } from "express";
-import { auth, requiresAuth } from "express-openid-connect";
+import expressOpenIdConnect from "express-openid-connect";
 
 import type { DemoAppConfig } from "./config.js";
 
@@ -21,6 +21,8 @@ function asNonEmptyString(value: unknown): string | undefined {
 }
 
 export function createAuth0Authentication(config: DemoAppConfig): DemoAuthentication {
+  const { auth, requiresAuth } = expressOpenIdConnect;
+
   return {
     middleware: auth({
       authRequired: false,

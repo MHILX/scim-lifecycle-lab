@@ -26,8 +26,10 @@ const bobUserName = "bob@example.test";
 const engineeringDisplayName = "Engineering";
 
 function loadConfig(): SimulatorConfig {
-  if (existsSync(".env")) {
-    process.loadEnvFile(".env");
+  const environmentFile = existsSync(".env") ? ".env" : new URL("../../../.env", import.meta.url);
+
+  if (existsSync(environmentFile)) {
+    process.loadEnvFile(environmentFile);
   }
 
   const bearerToken = process.env.SCIM_BEARER_TOKEN;

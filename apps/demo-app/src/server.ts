@@ -6,8 +6,10 @@ import { loadDemoAppConfig } from "./config.js";
 import { HttpScimDirectoryClient } from "./scim-client.js";
 
 async function main(): Promise<void> {
-  if (existsSync(".env")) {
-    process.loadEnvFile(".env");
+  const environmentFile = existsSync(".env") ? ".env" : new URL("../../../.env", import.meta.url);
+
+  if (existsSync(environmentFile)) {
+    process.loadEnvFile(environmentFile);
   }
 
   const config = loadDemoAppConfig();

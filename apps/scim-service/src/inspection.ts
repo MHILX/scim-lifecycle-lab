@@ -75,6 +75,7 @@ export function registerInspectionRoute(app: FastifyInstance, database: Database
         SELECT group_members.group_id, users.id, users.user_name
         FROM group_members
         INNER JOIN users ON users.id = group_members.user_id
+        WHERE group_members.group_id = ?
         ORDER BY users.user_name, users.id
       `
     );

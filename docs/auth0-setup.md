@@ -12,11 +12,11 @@ For local development, configure these values in the Auth0 application settings:
 | Allowed Logout URLs | `http://localhost:3001` |
 | Allowed Web Origins | `http://localhost:3001` |
 
-Use HTTPS equivalents outside localhost. The callback and logout values must match `DEMO_APP_BASE_URL` exactly; the application validates this at startup.
+Use HTTPS equivalents outside localhost. The callback URL must be `DEMO_APP_BASE_URL` followed by `/callback`, and the logout URL must equal `DEMO_APP_BASE_URL`; the application validates both at startup.
 
 ## Local Configuration
 
-Copy `.env.example` to `.env`, then set:
+Complete the shared [Quick Start](../README.md#quick-start), including `npm install`, `npm run build`, and `npm run migrate`. Edit the existing repository-root `.env`, then set:
 
 ```dotenv
 DEMO_APP_BASE_URL=http://localhost:3001
@@ -34,14 +34,19 @@ Generate a session secret locally with:
 node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
 ```
 
-Start the two servers in separate terminals:
+Keep the SCIM service running in Terminal 1, or start it from the repository root:
 
 ```powershell
 npm run dev:scim
+```
+
+Start the demo app from the repository root in Terminal 3. Reserve Terminal 2 for simulator commands:
+
+```powershell
 npm run dev:demo
 ```
 
-Open `http://localhost:3001`. The Auth0 SDK owns `/login`, `/callback`, and `/logout`; do not create application routes with those paths.
+Expected: the console prints `Demo app listening at http://localhost:3001`. The Auth0 SDK owns `/login`, `/callback`, and `/logout`; do not create application routes with those paths. Provision the identity mapping below before signing in at `http://localhost:3001`.
 
 ## SCIM Identity Binding
 
@@ -53,7 +58,19 @@ GET /Users?filter=externalId eq "<Auth0 sub>"
 
 The application grants protected access only when exactly one matching SCIM User exists and `active` is `true`. It rejects access when the local User is missing, inactive, or ambiguous, and fails closed when the SCIM service cannot be reached. The lookup runs on every protected `/app` and `/api/session` request.
 
-Provision the selected Auth0 user's exact `sub` into the SCIM User's `externalId`; do not map by email. For the checked-in simulator, set `SCIM_AUTH0_SUBJECT` to that `sub` before running `npm run simulate:lifecycle`. The default simulator identifier is retained when this variable is blank.
+Choose an existing Auth0 user you can sign in as. In the Auth0 Dashboard, open **User Management > Users**, select the user, and copy the **User ID**. For this demo, that exact value is the OIDC `sub`, often shaped like `auth0|...`.
+
+Set `SCIM_AUTH0_SUBJECT` in the root `.env` to that value. Do not map by email. In Terminal 2, run:
+
+```powershell
+npm run simulate:provision
+```
+
+Expected: `Provisioning scenario complete`. Alice's local SCIM `externalId` now matches the selected Auth0 account. The simulator does not create an Auth0 user, and you should sign in using the selected account's credentials, not the simulator's `alice@example.test` profile name.
+
+Do not use `simulate:lifecycle` for login testing: it deletes Alice at the end. When `SCIM_AUTH0_SUBJECT` is blank, the simulator uses a local-only identifier that will not match your Auth0 login.
+
+Sign in at `http://localhost:3001` and expect **Active SCIM access**. Run `npm run simulate:disable` in Terminal 2, then refresh `/app` to see **Access denied** with HTTP `403`. Run `npm run simulate:enable` and refresh again to restore access with HTTP `200`; no sign-out is required. Finish with `npm run simulate:cleanup`.
 
 ## Credentials and Scope
 
