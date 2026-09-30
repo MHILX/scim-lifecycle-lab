@@ -14,6 +14,8 @@ import {
 } from "@scim-lifecycle-lab/scim-contract";
 
 import { markScimRequestAuthenticated, registerAuditHooks } from "./audit.js";
+import type { LifecycleSyncAdapter } from "./auth0-adapter.js";
+import { isLoopbackHost } from "./config.js";
 import { migrateDatabase } from "./database/migrations.js";
 import { registerGroupRoutes } from "./groups.js";
 import { registerInspectionRoute } from "./inspection.js";
@@ -24,8 +26,10 @@ export interface ScimAppOptions {
   database?: DatabaseSync;
   bodyLimit?: number;
   enforceHttps?: boolean;
+  trustedProxies?: string[];
   enableInspection?: boolean;
   auditRedactAttributes?: string[];
+  lifecycleAdapter?: LifecycleSyncAdapter;
   logger?: boolean | { level: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent" };
 }
 
@@ -49,6 +53,7 @@ export function createScimApp(options: ScimAppOptions): FastifyInstance {
   const app = Fastify({
     logger: options.logger ?? false,
     requestIdHeader: "x-correlation-id",
+    trustProxy: options.trustedProxies ?? false,
     bodyLimit: options.bodyLimit ?? 1_048_576
   });
 
@@ -61,7 +66,7 @@ export function createScimApp(options: ScimAppOptions): FastifyInstance {
   });
 
   const protectScimEndpoint = async (request: FastifyRequest): Promise<void> => {
-    if (options.enforceHttps === true && request.protocol !== "https") {
+    if (request.protocol !== "https" && (options.enforceHttps === true || !isLoopbackHost(request.ip))) {
       throw new ScimError(403, "HTTPS is required for SCIM endpoints.");
     }
 
@@ -159,7 +164,7 @@ export function createScimApp(options: ScimAppOptions): FastifyInstance {
 
     scim.get("/Schemas/User", async (_request, reply) => sendScim(reply, 200, userSchema));
     scim.get("/Schemas/Group", async (_request, reply) => sendScim(reply, 200, groupSchema));
-    registerUserRoutes(scim, database);
+    registerUserRoutes(scim, database, options.lifecycleAdapter);
     registerGroupRoutes(scim, database);
 
     if (options.enableInspection === true) {

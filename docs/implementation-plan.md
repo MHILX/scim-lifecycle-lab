@@ -4,6 +4,30 @@
 
 Deliver a local demo that shows an enterprise directory provisioning users and groups through SCIM 2.0 while Auth0 independently handles OIDC login to a sample application. The project should make every lifecycle event observable and reproducible without needing an external IdP.
 
+## Implementation Status
+
+Local implementation status as of 2026-09-29:
+
+| Phase | Status |
+| --- | --- |
+| 1-7 | Implemented: workspace, migrations, discovery, User/Group lifecycle, audit inspection, and repeatable HTTP simulator. |
+| 8 | Auth0 OIDC integration and per-request SCIM gate implemented and locally tested; live browser/tenant acceptance still requires a test Auth0 account. |
+| 9 | Implemented, disabled by default: official Auth0 SDK, approved metadata, account block/unblock, safe bounded retries, and sanitized audited outcomes. External API behavior is tested with mocked HTTP. |
+| 10 | Setup and known compatibility constraints documented in [idp-setup.md](idp-setup.md); live Entra ID/Okta provisioning remains an external validation milestone. |
+
+Completed follow-up implementation checklist:
+
+- [x] Redact sensitive PATCH values, including rejected credential operations and configured profile paths.
+- [x] Enforce HTTPS outside loopback and trust forwarding headers only from configured proxies.
+- [x] Preserve ports in `Location`, `meta.location`, and group-member references.
+- [x] Integrate optional Auth0 sync after SCIM commits and expose adapter outcomes through audit inspection.
+- [x] Extend protocol tests for Group replacement/deletion/uniqueness, pagination bounds, authentication/content handling, migration upgrades, and adapter failure/retry behavior.
+- [x] Add environment settings, Management API setup, and a real-IdP walkthrough.
+- [ ] Complete the live acceptance checklist in [auth0-setup.md](auth0-setup.md#live-acceptance-checklist).
+- [ ] Run one real IdP tenant end to end and record observed compatibility results in [idp-setup.md](idp-setup.md#validation-record).
+
+The phase definitions below remain the acceptance criteria. Audit persistence is currently best-effort; this local lab does not provide a durable sync queue or an enterprise-grade guaranteed audit sink.
+
 ## Decisions to Preserve
 
 | Area | Decision |

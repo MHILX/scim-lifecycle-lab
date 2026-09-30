@@ -40,6 +40,7 @@ interface InspectionAuditRow {
   http_status: number;
   before_state: string | null;
   after_state: string | null;
+  adapter_outcome: string | null;
   created_at: string;
 }
 
@@ -83,7 +84,7 @@ export function registerInspectionRoute(app: FastifyInstance, database: Database
       .prepare(
         `
           SELECT id, correlation_id, actor, request_method, request_path, request_metadata,
-                 request_payload, http_status, before_state, after_state, created_at
+               request_payload, http_status, before_state, after_state, adapter_outcome, created_at
           FROM audit_events
           ORDER BY created_at DESC, id DESC
           LIMIT 500
@@ -126,6 +127,7 @@ export function registerInspectionRoute(app: FastifyInstance, database: Database
         status: event.http_status,
         beforeState: parseAuditJson(event.before_state),
         afterState: parseAuditJson(event.after_state),
+        adapterOutcome: parseAuditJson(event.adapter_outcome),
         createdAt: event.created_at
       }))
     });

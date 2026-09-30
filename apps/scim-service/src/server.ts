@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 
 import { createScimApp } from "./app.js";
+import { createAuth0LifecycleAdapter } from "./auth0-adapter.js";
 import { loadServiceConfig } from "./config.js";
 import { openDatabase } from "./database/connection.js";
 
@@ -13,13 +14,16 @@ async function main(): Promise<void> {
 
   const config = loadServiceConfig();
   const database = openDatabase(config.databasePath);
+  const lifecycleAdapter = createAuth0LifecycleAdapter(config.auth0Management);
 
   const app = createScimApp({
     bearerToken: config.bearerToken,
     database,
     enforceHttps: config.enforceHttps,
+    trustedProxies: config.trustedProxies,
     enableInspection: config.enableInspection,
     auditRedactAttributes: config.auditRedactAttributes,
+    ...(lifecycleAdapter === undefined ? {} : { lifecycleAdapter }),
     logger: { level: config.logLevel }
   });
 

@@ -76,4 +76,48 @@ Sign in at `http://localhost:3001` and expect **Active SCIM access**. Run `npm r
 
 Keep `AUTH0_CLIENT_SECRET`, `AUTH0_SESSION_SECRET`, and `SCIM_BEARER_TOKEN` in environment-specific secret storage. Do not expose any of them to browser code.
 
-The optional Auth0 Management API adapter is not implemented yet. No Management API client credentials or scopes are required for this phase.
+No Management API client credentials or scopes are required while `AUTH0_SYNC_ENABLED=false`, which is the default. The Regular Web Application credentials are independent of the optional adapter's credentials.
+
+## Optional Management API Adapter
+
+Use only a disposable test tenant and accounts that this lab is allowed to block and unblock. The adapter controls the account-wide `blocked` flag; it does not distinguish blocks imposed by other administrators.
+
+1. In the same Auth0 tenant used for demo login, create a separate **Machine to Machine** application.
+2. Authorize it for the **Auth0 Management API** with only `update:users`. This scope is needed for `blocked` and also permits the approved metadata updates. Do not grant read, create, delete, role, or connection scopes. `update:users_app_metadata` alone cannot update `blocked`.
+3. Set these names in the root `.env` using the M2M application's credentials, not the Regular Web Application's credentials:
+
+```dotenv
+AUTH0_SYNC_ENABLED=true
+AUTH0_MANAGEMENT_DOMAIN=your-tenant.us.auth0.com
+AUTH0_MANAGEMENT_CLIENT_ID=your-m2m-client-id
+AUTH0_MANAGEMENT_CLIENT_SECRET=your-m2m-client-secret
+SCIM_AUTH0_SUBJECT=auth0|your-existing-test-user-id
+```
+
+4. Restart the SCIM service and run `npm run simulate:provision`. The SDK obtains and caches its own Management API token. Do not configure a static Management API access token.
+
+The mapping is exact: SCIM `externalId` is the Auth0 `sub`/User ID, never an email address. The adapter updates that existing Auth0 account after committed User creates, replacements, and patches. It writes only `app_metadata.externalId`, `app_metadata.department`, `app_metadata.employeeNumber`, and `blocked = !active`. Removing an approved profile field clears its metadata value. Deleting a SCIM User blocks the mapped Auth0 account without deleting it.
+
+Updates for one subject are serialized within the service process. The SDK allows at most two retries for safe transient failures of these idempotent absolute updates, with a five-second timeout per attempt. There is no durable background retry queue. After repairing a failed sync, resend the relevant SCIM PATCH or replacement to reconcile the account.
+
+Inspection audit events include `adapterOutcome`:
+
+| Status | Meaning |
+| --- | --- |
+| `disabled` | No adapter is configured; no Auth0 network request occurred. |
+| `not_mapped` | The SCIM User has no `externalId`. |
+| `not_found` | The mapped account does not exist; no account is created. |
+| `synced` | The Management API update succeeded. |
+| `failed` | The Management API rejected the update or could not be reached. Only a sanitized outcome and available HTTP status are recorded. |
+
+Missing accounts and failed syncs do not roll back the SCIM transaction or change its HTTP success response. The application checks the authoritative SCIM active status on every protected request regardless of adapter configuration.
+
+## Live Acceptance Checklist
+
+These checks require your test tenant; automated tests mock the external HTTP calls.
+
+- With the adapter disabled, sign in as the mapped active user, disable the SCIM User, and verify the same browser session receives `403`; re-enable and verify `200`.
+- With the adapter enabled, provision the same account and inspect its three approved metadata fields in the Auth0 Dashboard.
+- Disable and re-enable the User; verify the Auth0 blocked flag and audited `synced` results change accordingly.
+- Delete the local User; verify protected access is denied and Auth0 retains the now-blocked account.
+- Restore the test account when finished. Simulator cleanup deletes local resources and, with sync enabled, can leave their Auth0 accounts blocked.

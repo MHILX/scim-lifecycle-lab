@@ -87,8 +87,22 @@ $state.groups | Format-Table displayName, members
 $state.auditEvents | Select-Object -First 5 -Property method, path, status, correlationId
 ```
 
+## Optional Auth0 Sync Check
+
+First complete the existing-session login check with sync disabled, then configure the separate M2M adapter described in [auth0-setup.md](auth0-setup.md#optional-management-api-adapter) and restart the SCIM service.
+
+1. Run `npm run simulate:provision` and verify the selected Auth0 account's approved `app_metadata` fields.
+2. Run `npm run simulate:disable`; verify Auth0 marks the account blocked and an inspection event shows `adapterOutcome.status = synced`.
+3. Refresh the already-authenticated protected page and verify the SCIM gate still returns `403`.
+4. Run `npm run simulate:enable`; verify Auth0 unblocks the account and the protected page returns `200`.
+5. Inspect both successful and failed adapter outcomes alongside the SCIM HTTP status. A missing Auth0 account or a Management API failure is an audited non-fatal result, not a SCIM rollback.
+
+For the next milestone, follow the [real-IdP setup guide](idp-setup.md). No completed live tenant run is claimed by the automated demo.
+
 ## Clean Up
 
 Run `npm run simulate:cleanup` in Terminal 2 to remove the simulator's known Engineering, Alice, and Bob resources; expect `Cleanup complete`. The cleanup mode is safe to run when none of those resources exist. Stop the servers with `Ctrl+C` in Terminals 1 and 3.
 
 `simulate:provision` and `simulate:lifecycle` also delete these known resources before recreating them. Use a disposable lab directory, not an existing production directory.
+
+With Auth0 sync enabled, cleanup blocks the mapped accounts before removing local Users. Run provisioning again to unblock the selected mapped account, or restore its blocked flag in the test tenant's Dashboard before shutting down the lab.

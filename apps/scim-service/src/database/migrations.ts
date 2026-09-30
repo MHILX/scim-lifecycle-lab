@@ -65,6 +65,10 @@ const migrations: Migration[] = [
   {
     id: "002_users_external_id_index",
     sql: "CREATE INDEX idx_users_external_id ON users(external_id);"
+  },
+  {
+    id: "003_audit_adapter_outcome",
+    sql: "ALTER TABLE audit_events ADD COLUMN adapter_outcome TEXT;"
   }
 ];
 

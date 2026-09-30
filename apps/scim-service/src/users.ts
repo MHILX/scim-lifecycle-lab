@@ -18,7 +18,8 @@ import {
 } from "@scim-lifecycle-lab/scim-contract";
 
 import { runInTransaction } from "./database/transaction.js";
-import { setAuditSnapshots } from "./audit.js";
+import { setAuditAdapterOutcome, setAuditSnapshots } from "./audit.js";
+import type { LifecycleSyncAdapter, LifecycleSyncOutcome } from "./auth0-adapter.js";
 
 interface UserRow {
   id: string;
@@ -593,7 +594,7 @@ function assertValidUserId(id: string): void {
 }
 
 function userLocation(request: FastifyRequest, id: string): string {
-  return `${request.protocol}://${request.hostname}/Users/${id}`;
+  return `${request.protocol}://${request.host}/Users/${id}`;
 }
 
 function toScimUser(user: StoredUser, request: FastifyRequest): Record<string, unknown> {
@@ -638,7 +639,29 @@ function sendScim(reply: FastifyReply, statusCode: number, body?: unknown): Fast
   return reply.code(statusCode).type(SCIM_CONTENT_TYPE).send(body);
 }
 
-export function registerUserRoutes(app: FastifyInstance, database: DatabaseSync): void {
+async function syncUserLifecycle(
+  request: FastifyRequest,
+  user: StoredUser,
+  adapter: LifecycleSyncAdapter | undefined
+): Promise<void> {
+  let outcome: LifecycleSyncOutcome = { adapter: "auth0", status: "disabled" };
+
+  if (adapter !== undefined) {
+    try {
+      outcome = await adapter.syncUser(user, request.id);
+    } catch {
+      outcome = { adapter: "auth0", status: "failed" };
+    }
+  }
+
+  setAuditAdapterOutcome(request, outcome);
+}
+
+export function registerUserRoutes(
+  app: FastifyInstance,
+  database: DatabaseSync,
+  lifecycleAdapter?: LifecycleSyncAdapter
+): void {
   app.get<{ Querystring: Record<string, unknown> }>("/Users", async (request, reply) => {
     const parsedQuery = paginationQuerySchema.safeParse(request.query);
 
@@ -666,6 +689,7 @@ export function registerUserRoutes(app: FastifyInstance, database: DatabaseSync)
     const responseBody = toScimUser(user, request);
 
     setAuditSnapshots(request, null, responseBody);
+    await syncUserLifecycle(request, user, lifecycleAdapter);
 
     reply.header("location", location);
     return sendScim(reply, 201, responseBody);
@@ -691,6 +715,7 @@ export function registerUserRoutes(app: FastifyInstance, database: DatabaseSync)
     const responseBody = toScimUser(user, request);
 
     setAuditSnapshots(request, beforeState, responseBody);
+    await syncUserLifecycle(request, user, lifecycleAdapter);
 
     return sendScim(reply, 200, responseBody);
   });
@@ -704,6 +729,7 @@ export function registerUserRoutes(app: FastifyInstance, database: DatabaseSync)
     const responseBody = toScimUser(user, request);
 
     setAuditSnapshots(request, beforeState, responseBody);
+    await syncUserLifecycle(request, user, lifecycleAdapter);
 
     return sendScim(reply, 200, responseBody);
   });
@@ -715,6 +741,7 @@ export function registerUserRoutes(app: FastifyInstance, database: DatabaseSync)
     setAuditSnapshots(request, beforeState, undefined);
     const affectedGroups = deleteStoredUser(database, request.params.id);
     setAuditSnapshots(request, beforeState, { deletedUserId: user.id, removedFromGroups: affectedGroups });
+    await syncUserLifecycle(request, { ...user, active: false }, lifecycleAdapter);
 
     return sendScim(reply, 204);
   });

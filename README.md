@@ -197,14 +197,31 @@ The SCIM service exposes these SCIM 2.0 endpoints:
 
 The implementation supports bearer-token authentication, pagination (`startIndex`, `count`), a limited documented filter grammar, and SCIM `ListResponse` and error objects. Mutation requests require `application/scim+json`.
 
+## HTTPS Deployment
+
+Plain HTTP is allowed only for loopback development. A non-loopback `SCIM_HOST` enables HTTPS enforcement automatically and cannot explicitly disable it. The service itself listens over HTTP; terminate public TLS at a reverse proxy and prevent direct access to the backend port.
+
+For a TLS proxy on the same machine:
+
+```dotenv
+SCIM_HOST=127.0.0.1
+SCIM_ENFORCE_HTTPS=true
+SCIM_TRUST_PROXY=127.0.0.1,::1
+```
+
+The proxy must overwrite incoming `X-Forwarded-Proto`, `X-Forwarded-Host`, and `X-Forwarded-For` with verified values. Only configured proxy IPs/CIDRs are trusted; never trust all internet addresses. Forwarded HTTPS requests produce HTTPS resource URLs, including the public host and port. Keep inspection disabled on public deployments unless its bearer-protected administrative audience is explicitly intended.
+
+The real-directory setup and remaining tenant validation are described in [docs/idp-setup.md](docs/idp-setup.md).
+
 ## Auth0 Boundary
 
 Auth0 is part of the login flow, not the core SCIM protocol demonstration.
 
 - The sample application uses an Auth0 OIDC application for sign-in.
 - The application checks the local SCIM user is active before serving protected content.
-- An optional adapter, not yet implemented, could use the Auth0 Management API to block a corresponding Auth0 user when SCIM sets `active: false`.
-- That adapter would store the SCIM `externalId` in Auth0 `app_metadata` and could map department and employee number to metadata.
+- An optional, disabled-by-default adapter uses the Auth0 Management API to block a corresponding account when SCIM sets `active: false` or deletes the local User, and unblock it when re-enabled.
+- The adapter maps `externalId` directly to the Auth0 `sub` and stores `externalId`, department, and employee number in approved `app_metadata` fields. It never creates or deletes Auth0 accounts.
+- Adapter outcomes appear in the audit trail. Missing accounts and API failures are non-fatal; the local SCIM lifecycle gate remains authoritative. Setup is in [docs/auth0-setup.md](docs/auth0-setup.md#optional-management-api-adapter).
 - SCIM groups and Auth0 roles remain distinct until an explicit, documented mapping is added.
 - Password synchronization is out of scope.
 
@@ -261,17 +278,19 @@ docs/
 
 ## Current Implementation
 
-The first local SCIM slice is implemented:
+The local SCIM implementation is available:
 
 - SQLite migrations for users, groups, group membership, and audit events.
 - Bearer-protected discovery endpoints and SCIM-formatted errors.
 - User and Group create, read, replace, patch, delete, pagination, and documented equality filters.
 - Atomic mutations, case-insensitive unique `userName` and `displayName`, and cascading group-membership removal when a User is deleted.
-- Request/outcome auditing with configurable payload redaction and a bearer-protected development inspection endpoint.
+- Request/outcome auditing with configurable payload and PATCH-path redaction and a bearer-protected development inspection endpoint.
 - A repeatable HTTP client simulator for the Alice/Bob lifecycle scenario.
 - A server-side Auth0 Regular Web Application that checks an Auth0 `sub` against the matching active SCIM `externalId` on every protected request.
+- Optional Auth0 Management API lifecycle sync, bounded retries of absolute updates, ordered per-account changes, and audited non-fatal results.
+- Loopback-only HTTP development and explicit trusted-proxy support for public HTTPS deployments.
 
-The optional Auth0 Management API adapter remains intentionally pending.
+Live Auth0 sign-in and real Entra ID/Okta acceptance remain tenant-dependent validation steps. The checked-in guide records the current limitations without claiming a completed real-IdP run.
 
 ## Implemented Protocol Subset
 
@@ -305,6 +324,9 @@ npm test
 - Deleted users no longer appear in list results.
 - Discovery documents match the actual implementation.
 - Lifecycle mutations capture redacted before-and-after snapshots; audit persistence is currently best-effort.
+- Sensitive PATCH values are redacted, including rejected password operations.
+- The optional Auth0 adapter never causes a committed SCIM mutation to fail and records sanitized outcomes.
+- Public HTTP and untrusted forwarding headers are rejected; resource URLs retain their ports.
 
 ## Documentation
 

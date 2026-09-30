@@ -3,17 +3,23 @@ import type { DatabaseSync } from "node:sqlite";
 
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
+import type { LifecycleSyncOutcome } from "./auth0-adapter.js";
+
 interface AuditContext {
   actor?: string;
   beforeState?: unknown;
   afterState?: unknown;
+  adapterOutcome?: LifecycleSyncOutcome;
 }
 
 const auditContexts = new WeakMap<FastifyRequest, AuditContext>();
 const defaultSensitiveAttributes = [
   "authorization",
+  "access_token",
   "bearertoken",
+  "client_secret",
   "clientsecret",
+  "id_token",
   "password",
   "refresh_token",
   "secret",
@@ -46,9 +52,23 @@ export function setAuditSnapshots(
   context.afterState = afterState;
 }
 
+export function setAuditAdapterOutcome(request: FastifyRequest, outcome: LifecycleSyncOutcome): void {
+  getAuditContext(request).adapterOutcome = outcome;
+}
+
 function isAuditEligibleRequest(request: FastifyRequest): boolean {
   const path = request.url.split("?", 1)[0] ?? request.url;
   return path !== "/health" && !path.startsWith("/_dev/");
+}
+
+function isSensitivePath(path: string, sensitiveAttributes: Set<string>): boolean {
+  const normalizedPath = path.toLowerCase();
+  const attributePath = normalizedPath.split("[", 1)[0] ?? normalizedPath;
+
+  return (
+    sensitiveAttributes.has(normalizedPath) ||
+    attributePath.split(/[.:]/).some((attribute) => sensitiveAttributes.has(attribute))
+  );
 }
 
 function redactValue(value: unknown, sensitiveAttributes: Set<string>): unknown {
@@ -60,10 +80,15 @@ function redactValue(value: unknown, sensitiveAttributes: Set<string>): unknown 
     return value;
   }
 
+  const object = value as Record<string, unknown>;
+  const sensitivePatchValue = typeof object.path === "string" && isSensitivePath(object.path, sensitiveAttributes);
+
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, nestedValue]) => [
+    Object.entries(object).map(([key, nestedValue]) => [
       key,
-      sensitiveAttributes.has(key.toLowerCase()) ? "[REDACTED]" : redactValue(nestedValue, sensitiveAttributes)
+      sensitiveAttributes.has(key.toLowerCase()) || (key.toLowerCase() === "value" && sensitivePatchValue)
+        ? "[REDACTED]"
+        : redactValue(nestedValue, sensitiveAttributes)
     ])
   );
 }
@@ -102,8 +127,8 @@ export function registerAuditHooks(
           `
             INSERT INTO audit_events (
               id, correlation_id, actor, request_method, request_path, request_metadata,
-              request_payload, http_status, before_state, after_state, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              request_payload, http_status, before_state, after_state, adapter_outcome, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `
         )
         .run(
@@ -123,6 +148,7 @@ export function registerAuditHooks(
           reply.statusCode,
           serializeForAudit(auditContext?.beforeState, sensitiveAttributes),
           serializeForAudit(auditContext?.afterState, sensitiveAttributes),
+          serializeForAudit(auditContext?.adapterOutcome, sensitiveAttributes),
           new Date().toISOString()
         );
     } catch (error) {

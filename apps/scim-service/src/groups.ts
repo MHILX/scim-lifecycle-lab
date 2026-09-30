@@ -392,11 +392,11 @@ function assertValidGroupId(id: string): void {
 }
 
 function groupLocation(request: FastifyRequest, id: string): string {
-  return `${request.protocol}://${request.hostname}/Groups/${id}`;
+  return `${request.protocol}://${request.host}/Groups/${id}`;
 }
 
 function userLocation(request: FastifyRequest, id: string): string {
-  return `${request.protocol}://${request.hostname}/Users/${id}`;
+  return `${request.protocol}://${request.host}/Users/${id}`;
 }
 
 function toScimGroup(database: DatabaseSync, group: StoredGroup, request: FastifyRequest): Record<string, unknown> {
