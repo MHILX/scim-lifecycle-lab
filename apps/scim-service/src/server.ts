@@ -1,0 +1,41 @@
+import { existsSync } from "node:fs";
+
+import { createScimApp } from "./app.js";
+import { loadServiceConfig } from "./config.js";
+import { openDatabase } from "./database/connection.js";
+
+async function main(): Promise<void> {
+  if (existsSync(".env")) {
+    process.loadEnvFile(".env");
+  }
+
+  const config = loadServiceConfig();
+  const database = openDatabase(config.databasePath);
+
+  const app = createScimApp({
+    bearerToken: config.bearerToken,
+    database,
+    enforceHttps: config.enforceHttps,
+    enableInspection: config.enableInspection,
+    auditRedactAttributes: config.auditRedactAttributes,
+    logger: { level: config.logLevel }
+  });
+
+  app.addHook("onClose", async () => {
+    database.close();
+  });
+
+  try {
+    const address = await app.listen({ host: config.host, port: config.port });
+    app.log.info({ address }, "SCIM service listening");
+  } catch (error) {
+    app.log.error({ error }, "SCIM service failed to start");
+    await app.close();
+    throw error;
+  }
+}
+
+void main().catch((error: unknown) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -1,0 +1,23 @@
+{
+  "name": "@scim-lifecycle-lab/demo-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "express-openid-connect": "^3.4.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/supertest": "^6.0.2",
+    "supertest": "^7.0.0"
+  }
+}

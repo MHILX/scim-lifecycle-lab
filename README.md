@@ -84,21 +84,65 @@ packages/
 docs/
   implementation-plan.md
   auth0-setup.md
-  idp-setup.md
 ```
 
-The layout is a target structure; the repository currently contains planning documentation only.
+## Current Implementation
+
+The first local SCIM slice is implemented:
+
+- SQLite migrations for users, groups, group membership, and audit events.
+- Bearer-protected discovery endpoints and SCIM-formatted errors.
+- User and Group create, read, replace, patch, delete, pagination, and documented equality filters.
+- Atomic mutations, case-insensitive unique `userName` and `displayName`, and cascading group-membership removal when a User is deleted.
+- Request/outcome auditing with configurable payload redaction and a bearer-protected development inspection endpoint.
+- A repeatable HTTP client simulator for the Alice/Bob lifecycle scenario.
+- A server-side Auth0 Regular Web Application that checks an Auth0 `sub` against the matching active SCIM `externalId` on every protected request.
+
+The optional Auth0 Management API adapter remains intentionally pending.
+
+## Run Locally
+
+Prerequisites: Node.js 22.13 or later and npm 11 or later.
+
+1. Copy `.env.example` to `.env`, then replace `SCIM_BEARER_TOKEN` with a local token of at least 16 characters.
+2. Install dependencies with `npm install`.
+3. Apply the SQLite schema with `npm run migrate`.
+4. Start the service with `npm run dev:scim`.
+5. Check `http://127.0.0.1:3000/health` and then run `npm run simulate:lifecycle` in a second terminal.
+6. Inspect current resources and redacted audit events with an authenticated `GET /_dev/inspection` request.
+7. Run `npm run simulate:cleanup` to remove the simulator's known resources.
+
+To run the Auth0 demo application, configure the Auth0 values in `.env` and follow [docs/auth0-setup.md](docs/auth0-setup.md), then run `npm run dev:demo` and open `http://localhost:3001`.
+
+The service accepts `application/scim+json` on SCIM mutation requests. `SCIM_ENABLE_INSPECTION` is disabled by default in code and should remain limited to local development or an authenticated administrative audience.
+
+## Implemented Protocol Subset
+
+| Area | Supported behavior |
+| --- | --- |
+| Authentication | Static bearer token on all SCIM endpoints; unauthenticated calls receive a SCIM `401` error before request-body processing. |
+| Discovery | `ServiceProviderConfig`, `ResourceTypes`, and `Schemas`; only implemented capabilities are advertised. |
+| User filters | `userName eq "value"` or exact `externalId eq "value"`, with `startIndex` and `count` pagination. |
+| Group filters | `displayName eq "value"`, with `startIndex` and `count` pagination. |
+| User PATCH | `add`, `replace`, and `remove` for explicit core and enterprise attribute paths. |
+| Group PATCH | `add`, `replace`, and `remove` for `displayName` and `members`; repeated member adds are no-ops. |
+| Enterprise attributes | Department and employee number through `urn:ietf:params:scim:schemas:extension:enterprise:2.0:User`. |
+| User deletion | Permanent deletion; memberships are removed atomically and affected Group versions advance. |
+
+Unsupported filter or PATCH paths return explicit SCIM errors. Bulk operations, sorting, ETags, and password synchronization are not supported.
 
 ## Demo Flow
 
 1. Run the SCIM service and sample application locally.
-2. Use the client simulator to create Alice and Bob.
-3. Create `Engineering` and add Alice.
-4. Sign in to the sample application through Auth0.
-5. Patch Alice's department through SCIM and inspect the audit trail.
-6. Patch Alice with `active: false` and verify the application denies access.
-7. Re-enable Alice, restore membership, and verify access again.
-8. Optionally replace the simulator with an Entra ID or Okta test tenant.
+2. Set `SCIM_AUTH0_SUBJECT` to the selected Auth0 user's `sub`, then run `npm run simulate:provision`.
+3. Sign in to the sample application through Auth0 and verify active SCIM access.
+4. Run `npm run simulate:disable`, then refresh the protected page to verify access is denied.
+5. Run `npm run simulate:enable`, then refresh to verify access is restored.
+6. Inspect the audit trail and run `npm run simulate:cleanup` when finished.
+7. Optionally replace the simulator with an Entra ID or Okta test tenant.
+
+The detailed current walkthrough is in [docs/demo-script.md](docs/demo-script.md).
+The Auth0 tenant and stable identifier setup is in [docs/auth0-setup.md](docs/auth0-setup.md).
 
 ## Quality Bar
 

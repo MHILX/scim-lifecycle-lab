@@ -1,0 +1,35 @@
+{
+  "name": "scim-lifecycle-lab",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Inspectable SCIM 2.0 lifecycle provisioning and Auth0 login demo.",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=@scim-lifecycle-lab/scim-contract && npm run build --workspace=@scim-lifecycle-lab/scim-service && npm run build --workspace=@scim-lifecycle-lab/demo-app && npm run build --workspace=@scim-lifecycle-lab/client-simulator",
+    "check": "npm run build --workspace=@scim-lifecycle-lab/scim-contract && npm run check --workspace=@scim-lifecycle-lab/scim-service && npm run check --workspace=@scim-lifecycle-lab/demo-app && npm run check --workspace=@scim-lifecycle-lab/client-simulator",
+    "test": "npm run build --workspace=@scim-lifecycle-lab/scim-contract && npm run test --workspace=@scim-lifecycle-lab/scim-contract && npm run test --workspace=@scim-lifecycle-lab/scim-service && npm run test --workspace=@scim-lifecycle-lab/demo-app",
+    "dev:scim": "npm run dev --workspace=@scim-lifecycle-lab/scim-service",
+    "start:scim": "npm run start --workspace=@scim-lifecycle-lab/scim-service",
+    "dev:demo": "npm run dev --workspace=@scim-lifecycle-lab/demo-app",
+    "start:demo": "npm run start --workspace=@scim-lifecycle-lab/demo-app",
+    "migrate": "npm run migrate --workspace=@scim-lifecycle-lab/scim-service",
+    "simulate:lifecycle": "npm run dev --workspace=@scim-lifecycle-lab/client-simulator -- lifecycle",
+    "simulate:provision": "npm run dev --workspace=@scim-lifecycle-lab/client-simulator -- provision",
+    "simulate:disable": "npm run dev --workspace=@scim-lifecycle-lab/client-simulator -- disable",
+    "simulate:enable": "npm run dev --workspace=@scim-lifecycle-lab/client-simulator -- enable",
+    "simulate:cleanup": "npm run dev --workspace=@scim-lifecycle-lab/client-simulator -- cleanup"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
